@@ -5,23 +5,25 @@
  * This source code is licensed under the license found in the LICENSE file in
  * the root directory of this source tree.
  */
-import BrowserCell            from 'components/BrowserCell/BrowserCell.react';
+import BrowserRow             from 'components/BrowserRow/BrowserRow.react';
 import * as browserUtils      from 'lib/browserUtils';
 import DataBrowserHeaderBar   from 'components/DataBrowserHeaderBar/DataBrowserHeaderBar.react';
 import Editor                 from 'dashboard/Data/Browser/Editor.react';
 import EmptyState             from 'components/EmptyState/EmptyState.react';
 import Icon                   from 'components/Icon/Icon.react';
 import Parse                  from 'parse';
+import encode                 from 'parse/lib/browser/encode';
 import React                  from 'react';
 import styles                 from 'dashboard/Data/Browser/Browser.scss';
 import Button                 from 'components/Button/Button.react';
+import ParseApp               from 'lib/ParseApp';
+import PropTypes              from 'lib/PropTypes';
 
-const MAX_ROWS = 60; // Number of rows to render at any time
+const MAX_ROWS = 200; // Number of rows to render at any time
+const ROWS_OFFSET = 160;
 const ROW_HEIGHT = 31;
 
 const READ_ONLY = [ 'objectId', 'createdAt', 'updatedAt' ];
-
-let scrolling = false;
 
 export default class BrowserTable extends React.Component {
   constructor() {
@@ -57,78 +59,33 @@ export default class BrowserTable extends React.Component {
   }
 
   handleScroll() {
-    if (scrolling) {
-      return;
-    }
     if (!this.props.data || this.props.data.length === 0) {
       return;
     }
     requestAnimationFrame(() => {
-      let rowsAbove = Math.floor(this.refs.table.scrollTop / ROW_HEIGHT);
+      const currentScrollTop = this.refs.table.scrollTop;
+      let rowsAbove = Math.floor(currentScrollTop / ROW_HEIGHT);
       let offset = this.state.offset;
-      if (rowsAbove - this.state.offset > 20) {
-        offset = Math.floor(rowsAbove / 10) * 10 - 10;
-      } else if (rowsAbove - this.state.offset < 10) {
-        offset = Math.max(0, Math.floor(rowsAbove / 10) * 10 - 30);
+      const currentRow = rowsAbove - this.state.offset;
+
+      // If the scroll is near the beginning or end of the offset,
+      // we need to update the table data with the previous/next offset
+      if (currentRow < 10 || currentRow >= ROWS_OFFSET) {
+        // Rounds the number of rows above
+        rowsAbove = Math.floor(rowsAbove / 10) * 10;
+
+        offset = currentRow < 10
+          ? Math.max(0, rowsAbove - ROWS_OFFSET) // Previous set of rows
+          : rowsAbove - 10; // Next set of rows
       }
       if (this.state.offset !== offset) {
         this.setState({ offset });
-        this.refs.table.scrollTop = rowsAbove * ROW_HEIGHT;
+        this.refs.table.scrollTop = currentScrollTop;
       }
-      if (this.props.maxFetched - offset < 100) {
+      if (this.props.maxFetched - offset <= ROWS_OFFSET * 1.4) {
         this.props.fetchNextPage();
       }
     });
-  }
-
-  renderRow({ row, obj, rowWidth }) {
-    let attributes = obj.attributes;
-    let index = row - this.state.offset;
-    return (
-      <div key={`row${index}`} className={styles.tableRow} style={{ minWidth: rowWidth }}>
-        <span className={styles.checkCell}>
-          <input
-            type='checkbox'
-            checked={this.props.selection['*'] || this.props.selection[obj.id]}
-            onChange={(e) => this.props.selectRow(obj.id, e.target.checked)} />
-        </span>
-        {this.props.order.map(({ name, width }, j) => {
-          let type = this.props.columns[name].type;
-          let attr = attributes[name];
-          if (name === 'objectId') {
-            attr = obj.id;
-          } else if (name === 'ACL' && this.props.className === '_User' && !attr) {
-            attr = new Parse.ACL({ '*': { read: true }, [obj.id]: { read: true, write: true }});
-          } else if (type === 'Relation' && !attr && obj.id) {
-            attr = new Parse.Relation(obj, name);
-            attr.targetClassName = this.props.columns[name].targetClass;
-          }
-          let current = this.props.current && this.props.current.row === row && this.props.current.col === j;
-          let hidden = false;
-          if (name === 'password' && this.props.className === '_User') {
-            hidden = true;
-          } else if (name === 'sessionToken') {
-            if (this.props.className === '_User' || this.props.className === '_Session') {
-              hidden = true;
-            }
-          }
-          return (
-            <BrowserCell
-              key={name}
-              type={type}
-              readonly={READ_ONLY.indexOf(name) > -1}
-              width={width}
-              current={current}
-              onSelect={() => this.props.setCurrent({ row: row, col: j })}
-              onEditChange={(state) => this.props.setEditing(state)}
-              onPointerClick={this.props.onPointerClick}
-              setRelation={this.props.setRelation}
-              value={attr}
-              hidden={hidden} />
-          );
-        })}
-      </div>
-    );
   }
 
   render() {
@@ -141,27 +98,49 @@ export default class BrowserTable extends React.Component {
       }
     }
 
-    let headers = this.props.order.map(({ name, width }) => (
+    let headers = this.props.order.map(({ name, width, visible }) => (
       {
         width: width,
         name: name,
         type: this.props.columns[name].type,
         targetClass: this.props.columns[name].targetClass,
-        order: ordering.col === name ? ordering.direction : null
+        order: ordering.col === name ? ordering.direction : null,
+        visible
       }
     ));
     let editor = null;
     let table = <div ref='table' />;
     if (this.props.data) {
-      let rowWidth = 210;
-      for (let i = 0; i < this.props.order.length; i++) {
-        rowWidth += this.props.order[i].width;
-      }
+      const rowWidth = this.props.order.reduce(
+        (rowWidth, { visible, width }) => visible ? rowWidth + width : rowWidth,
+        this.props.onAddRow ? 210 : 0
+      );
       let newRow = null;
       if (this.props.newObject && this.state.offset <= 0) {
+        const currentCol = this.props.current && this.props.current.row === -1 ? this.props.current.col : undefined;
         newRow = (
           <div style={{ marginBottom: 30, borderBottom: '1px solid #169CEE' }}>
-            {this.renderRow({ row: -1, obj: this.props.newObject, rowWidth: rowWidth })}
+            <BrowserRow
+              key={-1}
+              className={this.props.className}
+              columns={this.props.columns}
+              currentCol={currentCol}
+              isUnique={this.props.isUnique}
+              obj={this.props.newObject}
+              onPointerClick={this.props.onPointerClick}
+              onFilterChange={this.props.onFilterChange}
+              order={this.props.order}
+              readOnlyFields={READ_ONLY}
+              row={-1}
+              rowWidth={rowWidth}
+              selection={this.props.selection}
+              selectRow={this.props.selectRow}
+              setCurrent={this.props.setCurrent}
+              setEditing={this.props.setEditing}
+              setRelation={this.props.setRelation}
+              setCopyableValue={this.props.setCopyableValue}
+              setContextMenu={this.props.setContextMenu}
+              onEditSelectedRow={this.props.onEditSelectedRow} />
           </div>
         );
       }
@@ -170,7 +149,37 @@ export default class BrowserTable extends React.Component {
       for (let i = this.state.offset; i < end; i++) {
         let index = i - this.state.offset;
         let obj = this.props.data[i];
-        rows[index] = this.renderRow({ row: i, obj: obj, rowWidth: rowWidth });
+        const currentCol = this.props.current && this.props.current.row === i ? this.props.current.col : undefined;
+
+        // Needed in order to force BrowserRow to update and re-render (and possibly update columns values),
+        // since the "obj" instance will only be updated when the update request is done.
+        const isEditingRow = this.props.current && this.props.current.row === i && !!this.props.editing;
+
+        rows[index] = <BrowserRow
+          key={index}
+          isEditing={isEditingRow}
+          className={this.props.className}
+          columns={this.props.columns}
+          schema={this.props.schema}
+          simplifiedSchema={this.props.simplifiedSchema}
+          filters={this.props.filters}
+          currentCol={currentCol}
+          isUnique={this.props.isUnique}
+          obj={obj}
+          onPointerClick={this.props.onPointerClick}
+          onFilterChange={this.props.onFilterChange}
+          order={this.props.order}
+          readOnlyFields={READ_ONLY}
+          row={i}
+          rowWidth={rowWidth}
+          selection={this.props.selection}
+          selectRow={this.props.selectRow}
+          setCurrent={this.props.setCurrent}
+          setEditing={this.props.setEditing}
+          setRelation={this.props.setRelation}
+          setCopyableValue={this.props.setCopyableValue}
+          setContextMenu={this.props.setContextMenu}
+          onEditSelectedRow={this.props.onEditSelectedRow} />
       }
 
       if (this.props.editing) {
@@ -185,32 +194,33 @@ export default class BrowserTable extends React.Component {
         if (visible) {
           let { name, width } = this.props.order[this.props.current.col];
           let { type, targetClass } = this.props.columns[name];
-          let readonly = READ_ONLY.indexOf(name) > -1;
+          let readonly = this.props.isUnique || READ_ONLY.indexOf(name) > -1;
           if (name === 'sessionToken') {
             if (this.props.className === '_User' || this.props.className === '_Session') {
               readonly = true;
             }
           }
           let obj = this.props.current.row < 0 ? this.props.newObject : this.props.data[this.props.current.row];
-          let value = obj.get(name);
+          let value = obj;
+          if (!this.props.isUnique) {
+            if (type === 'Array' || type === 'Object') {
+              // This is needed to avoid unwanted conversions of objects to Parse.Objects.
+              // "Parse._encoding" is responsible to convert Parse data into raw data.
+              // Since array and object are generic types, we want to edit them the way
+              // they were stored in the database.
+              value = encode(obj.get(name), undefined, true);
+            } else {
+              value = obj.get(name);
+            }
+          }
           if (name === 'objectId') {
-            value = obj.id;
+            if (!this.props.isUnique) {
+              value = obj.id;
+            }
           } else if (name === 'ACL' && this.props.className === '_User' && !value) {
             value = new Parse.ACL({ '*': { read: true }, [obj.id]: { read: true, write: true }});
           } else if (name === 'password' && this.props.className === '_User') {
             value = '';
-          } else if (type === 'Array') {
-            if (value) {
-              value = value.map(val => {
-                  if (val instanceof Parse.Object) {
-                      return val.toPointer();
-                  } else if (typeof val.getMonth === 'function') {
-                      return { __type: "Date", iso: val.toISOString() };
-                  }
-
-                  return val;
-              });
-            }
           }
           let wrapTop = Math.max(0, this.props.current.row * ROW_HEIGHT);
           if (this.props.current.row > -1 && this.props.newObject) {
@@ -218,34 +228,37 @@ export default class BrowserTable extends React.Component {
           }
           let wrapLeft = 30;
           for (let i = 0; i < this.props.current.col; i++) {
-            wrapLeft += this.props.order[i].width;
+            const column = this.props.order[i];
+            wrapLeft += column.visible ? column.width : 0;
           }
-
-          editor = (
-            <Editor
-              top={wrapTop}
-              left={wrapLeft}
-              type={type}
-              targetClass={targetClass}
-              value={value}
-              readonly={readonly}
-              width={width}
-              onCommit={(newValue) => {
-                if (newValue !== value) {
-                  this.props.updateRow(
-                    this.props.current.row,
-                    name,
-                    newValue
-                  );
-                }
-                this.props.setEditing(false);
-              }} />
-          );
+          if (!this.props.isUnique) {
+            editor = (
+              <Editor
+                top={wrapTop}
+                left={wrapLeft}
+                type={type}
+                targetClass={targetClass}
+                value={value}
+                readonly={readonly}
+                width={width}
+                onCommit={(newValue) => {
+                  if (newValue !== value) {
+                    this.props.updateRow(
+                      this.props.current.row,
+                      name,
+                      newValue
+                    );
+                  }
+                  this.props.setEditing(false);
+                }}
+                onCancel={() =>this.props.setEditing(false)} />
+            );
+          }
         }
       }
 
       let addRow = null;
-      if (!this.props.newObject) {
+      if (!this.props.newObject && this.props.onAddRow) {
         if (this.props.relation) {
           addRow = (
             <div className={styles.addRow}>
@@ -262,7 +275,7 @@ export default class BrowserTable extends React.Component {
               />
             </div>
           );
-        } else {
+        } else if (!this.props.isUnique) {
           addRow = (
             <div className={styles.addRow}>
               <a title='Add Row' onClick={this.props.onAddRow}>
@@ -303,9 +316,9 @@ export default class BrowserTable extends React.Component {
                   icon='files-solid' /> :
                 <EmptyState
                   title='No data to display'
-                  description='Add a row to store an object in this class.'
+                  description={this.props.onAddRow && 'Add a row to store an object in this class.'}
                   icon='files-solid'
-                  cta='Add a row'
+                  cta={this.props.onAddRow && 'Add a row'}
                   action={this.props.onAddRow} />
               }
             </div>
@@ -318,15 +331,25 @@ export default class BrowserTable extends React.Component {
       <div className={[styles.browser, browserUtils.isSafari() ? styles.safari : ''].join(' ')}>
         {table}
         <DataBrowserHeaderBar
-          selected={this.props.selection['*']}
-          selectAll={this.props.selectRow.bind(null, '*')}
+          selected={
+            this.props.selection &&
+            this.props.data &&
+            Object.values(this.props.selection).filter(checked => checked).length === this.props.data.length
+          }
+          selectAll={checked => this.props.data.forEach(({ id }) => this.props.selectRow(id, checked))}
           headers={headers}
           updateOrdering={this.props.updateOrdering}
-          readonly={!!this.props.relation}
+          readonly={!!this.props.relation || !!this.props.isUnique}
           handleDragDrop={this.props.handleHeaderDragDrop}
           onResize={this.props.handleResize}
-          onAddColumn={this.props.onAddColumn} />
+          onAddColumn={this.props.onAddColumn}
+          preventSchemaEdits={this.context.currentApp.preventSchemaEdits} />
       </div>
     );
   }
 }
+
+BrowserTable.contextTypes = {
+  currentApp: PropTypes.instanceOf(ParseApp)
+};
+

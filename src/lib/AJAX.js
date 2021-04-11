@@ -7,7 +7,6 @@
  */
 import * as CSRFManager from 'lib/CSRFManager';
 import encodeFormData   from 'lib/encodeFormData';
-import { Promise }      from 'parse';
 
 let basePath = '';
 export function setBasePath(newBasePath) {
@@ -34,7 +33,14 @@ export function request(method, url, body, abortable = false, withCredentials = 
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
   }
   xhr.withCredentials = withCredentials;
-  let p = new Promise();
+  let resolve;
+  let reject;
+  let p = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  p.resolve = resolve;
+  p.reject = reject;
   xhr.onerror = () => {
     p.reject({
       success: false,
@@ -53,7 +59,7 @@ export function request(method, url, body, abortable = false, withCredentials = 
         p.reject(this.responseText);
         return;
       }
-      if (json.hasOwnProperty('success') && json.success === false) {
+      if (Object.prototype.hasOwnProperty.call(json, 'success') && json.success === false) {
         p.reject(json);
       } else {
         p.resolve(json);
@@ -61,10 +67,10 @@ export function request(method, url, body, abortable = false, withCredentials = 
     } else if (this.status === 403) {
       p.reject({
         success: false,
-        message: "Permission Denied",
-        error: "Permission Denied",
-        errors: ["Permission Denied"],
-        notice: "Permission Denied",
+        message: 'Permission Denied',
+        error: 'Permission Denied',
+        errors: ['Permission Denied'],
+        notice: 'Permission Denied',
       });
     } else if (this.status >= 400 && this.status < 500) {
       let json = {};

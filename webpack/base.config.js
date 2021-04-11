@@ -33,17 +33,35 @@ module.exports = {
       {
         test: /\.js$/,
         exclude: /node_modules/,
-        use: { 
-          loader: 'babel-loader', 
+        use: {
+          loader: 'babel-loader',
           query: {
-            plugins: ['transform-decorators-legacy', 'transform-object-rest-spread', 'transform-regenerator', 'transform-runtime'],
-            presets: ['react', 'env'] 
-          }
+            plugins: [['@babel/plugin-proposal-decorators', { 'legacy': true }], '@babel/transform-regenerator', '@babel/transform-runtime'],
+            presets: ['@babel/preset-react', '@babel/preset-env']
+          },
         },
       }, {
         test: /\.scss$/,
-        use: [ "style-loader", "css-loader?modules&localIdentName=[local]__[hash:base64:5]!sass-loader?includePaths[]=" +
-          encodeURIComponent(path.resolve(__dirname, '../src')) ]
+        use: [
+          'style-loader',
+          {
+            loader: 'css-loader',
+            options: {
+              modules: {
+                localIdentName: '[local]__[hash:base64:5]'
+              },
+              importLoaders: 2
+            },
+          },
+          {
+            loader: 'sass-loader',
+            options: {
+              sassOptions: {
+                includePaths: [path.resolve(__dirname, '../src')]
+              }
+            }
+          }
+        ]
       }, {
         test: /\.css$/,
         use: [ 'style-loader', 'css-loader' ]
@@ -53,6 +71,9 @@ module.exports = {
       }, {
         test: /\.jpg$/,
         use: { loader: 'file-loader?name=img/[hash].[ext]' }
+      }, {
+        test: /\.flow$/,
+        use: 'null-loader'
       }
     ]
   },

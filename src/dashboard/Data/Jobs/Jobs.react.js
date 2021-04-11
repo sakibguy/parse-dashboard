@@ -60,8 +60,9 @@ function scheduleString(data) {
 }
 
 // TODO: create scrollable view component that handles lazy fetch container on scroll
+export default
 @subscribeTo('Jobs', 'jobs')
-export default class Jobs extends TableView {
+class Jobs extends TableView {
   constructor() {
     super();
     this.section = 'Core';
@@ -98,7 +99,7 @@ export default class Jobs extends TableView {
   }
 
   loadData() {
-    this.props.jobs.dispatch(ActionTypes.FETCH).always(() => {
+    this.props.jobs.dispatch(ActionTypes.FETCH).finally(() => {
       this.setState({ loading: false });
     });
     this.context.currentApp.getJobStatus().then((status) => {
@@ -145,7 +146,8 @@ export default class Jobs extends TableView {
         <tr key={data.objectId}>
           <td style={{width: '20%'}}>{data.jobName}</td>
           <td style={{width: '20%'}}>{DateUtils.dateStringUTC(new Date(data.createdAt))}</td>
-          <td style={{width: '40%'}}>
+          <td style={{width: '20%'}}>{data.finishedAt ? DateUtils.dateStringUTC(new Date(data.finishedAt.iso)) : ''}</td>
+          <td style={{width: '20%'}}>
             <div style={{ fontSize: 12, whiteSpace: 'normal', lineHeight: '16px' }}>
               {data.message}
             </div>
@@ -175,7 +177,8 @@ export default class Jobs extends TableView {
       return [
         <TableHeader key='func' width={20}>Function</TableHeader>,
         <TableHeader key='started' width={20}>Started At (UTC)</TableHeader>,
-        <TableHeader key='message' width={40}>Message</TableHeader>,
+        <TableHeader key='finished' width={20}>Finished At (UTC)</TableHeader>,
+        <TableHeader key='message' width={20}>Message</TableHeader>,
         <TableHeader key='status' width={20}>Status</TableHeader>,
       ];
     }
@@ -227,7 +230,7 @@ export default class Jobs extends TableView {
           title='Delete job schedule?'
           subtitle='Careful, this action cannot be undone'
           confirmText='Yes, delete it'
-          cancelText={`Never mind, don't`}
+          cancelText={'Never mind, don\'t'}
           onCancel={() => this.setState({ toDelete: null })}
           onConfirm={() => {
             this.setState({ toDelete: null });

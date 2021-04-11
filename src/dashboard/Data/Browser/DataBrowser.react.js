@@ -5,11 +5,14 @@
  * This source code is licensed under the license found in the LICENSE file in
  * the root directory of this source tree.
  */
+import copy                   from 'copy-to-clipboard';
 import BrowserTable           from 'dashboard/Data/Browser/BrowserTable.react';
 import BrowserToolbar         from 'dashboard/Data/Browser/BrowserToolbar.react';
+import ContextMenu            from 'components/ContextMenu/ContextMenu.react';
 import * as ColumnPreferences from 'lib/ColumnPreferences';
 import ParseApp               from 'lib/ParseApp';
 import React                  from 'react';
+import PropTypes              from 'lib/PropTypes';
 import { SpecialClasses }     from 'lib/Constants';
 
 /**
@@ -21,40 +24,56 @@ export default class DataBrowser extends React.Component {
   constructor(props, context) {
     super(props, context);
 
+    const columnPreferences = context.currentApp.columnPreference || {}
     let order = ColumnPreferences.getOrder(
       props.columns,
       context.currentApp.applicationId,
-      props.className
+      props.className,
+      columnPreferences[props.className]
     );
-
     this.state = {
       order: order,
       current: null,
       editing: false,
+      copyableValue: undefined,
+      simplifiedSchema: this.getSimplifiedSchema(props.schema, props.className)
     };
 
     this.handleKey = this.handleKey.bind(this);
+    this.handleHeaderDragDrop = this.handleHeaderDragDrop.bind(this);
+    this.handleResize = this.handleResize.bind(this);
+    this.setCurrent = this.setCurrent.bind(this);
+    this.setEditing = this.setEditing.bind(this);
+    this.handleColumnsOrder = this.handleColumnsOrder.bind(this);
+    this.setCopyableValue = this.setCopyableValue.bind(this);
+    this.setContextMenu = this.setContextMenu.bind(this);
 
     this.saveOrderTimeout = null;
   }
 
   componentWillReceiveProps(props, context) {
     if (props.className !== this.props.className) {
+      const columnPreferences = context.currentApp.columnPreference || {}
       let order = ColumnPreferences.getOrder(
         props.columns,
         context.currentApp.applicationId,
-        props.className
+        props.className,
+        columnPreferences[props.className]
       );
       this.setState({
         order: order,
         current: null,
         editing: false,
+        simplifiedSchema: this.getSimplifiedSchema(props.schema, props.className)
       });
-    } else if (Object.keys(props.columns).length !== Object.keys(this.props.columns).length) {
+    } else if (Object.keys(props.columns).length !== Object.keys(this.props.columns).length
+           || (props.isUnique && props.uniqueField !== this.props.uniqueField)) {
+      const columnPreferences = context.currentApp.columnPreference || {}
       let order = ColumnPreferences.getOrder(
         props.columns,
         context.currentApp.applicationId,
-        props.className
+        props.className,
+        columnPreferences[props.className]
       );
       this.setState({ order });
     }
@@ -79,6 +98,20 @@ export default class DataBrowser extends React.Component {
     }, 1000);
   }
 
+  getSimplifiedSchema(schema, classNameForEditors) {
+    const schemaSimplifiedData = {};
+    const classSchema = schema.data.get('classes').get(classNameForEditors);
+    if (classSchema) {
+      classSchema.forEach(({ type, targetClass }, col) => {
+        schemaSimplifiedData[col] = {
+          type,
+          targetClass,
+        };
+      });
+    }
+    return schemaSimplifiedData;
+  }
+
   handleResize(index, delta) {
     this.setState(({ order }) => {
       order[index].width = Math.max(60, order[index].width + delta);
@@ -93,8 +126,8 @@ export default class DataBrowser extends React.Component {
    * @param  {Number} hoverIndex - index of headerbar moved to left of
    */
   handleHeaderDragDrop(dragIndex, hoverIndex) {
-    let newOrder = this.state.order;
-    let movedIndex = newOrder.splice(dragIndex, 1);
+    const newOrder = [ ...this.state.order ];
+    const movedIndex = newOrder.splice(dragIndex, 1);
     newOrder.splice(hoverIndex, 0, movedIndex[0]);
     this.setState({ order: newOrder }, () => {
       this.updatePreferences(newOrder);
@@ -171,49 +204,93 @@ export default class DataBrowser extends React.Component {
         });
         e.preventDefault();
         break;
+      case 67: // C
+        if ((e.ctrlKey || e.metaKey) && this.state.copyableValue !== undefined) {
+          copy(this.state.copyableValue); // Copies current cell value to clipboard
+          if (this.props.showNote) {
+            this.props.showNote('Value copied to clipboard', false);
+          }
+          e.preventDefault()
+        }
+        break;
     }
   }
 
   setEditing(editing) {
-    if (this.state.editing !== editing) {
-      this.setState({ editing: editing });
+    if (this.props.updateRow) {
+      if (this.state.editing !== editing) {
+        this.setState({ editing: editing });
+      }
     }
   }
 
   setCurrent(current) {
-    if (this.state.current !== current) {
-      this.setState({ current: current });
+    if (JSON.stringify(this.state.current) !== JSON.stringify(current)) {
+      this.setState({ current });
     }
   }
 
+  setCopyableValue(copyableValue) {
+    if (this.state.copyableValue !== copyableValue) {
+      this.setState({ copyableValue });
+    }
+  }
+
+  setContextMenu(contextMenuX, contextMenuY, contextMenuItems) {
+    this.setState({ contextMenuX, contextMenuY, contextMenuItems });
+  }
+
+  handleColumnsOrder(order) {
+    this.setState({ order: [ ...order ] }, () => {
+      this.updatePreferences(order);
+    });
+  }
+
   render() {
-    let { className, ...other } = this.props;
+    let { className, count, disableSecurityDialog,  ...other } = this.props;
+    const { preventSchemaEdits } = this.context.currentApp;
     return (
       <div>
         <BrowserTable
           order={this.state.order}
           current={this.state.current}
           editing={this.state.editing}
+          simplifiedSchema={this.state.simplifiedSchema}
           className={className}
-          handleHeaderDragDrop={this.handleHeaderDragDrop.bind(this)}
-          handleResize={this.handleResize.bind(this)}
-          setEditing={this.setEditing.bind(this)}
-          setCurrent={this.setCurrent.bind(this)}
+          handleHeaderDragDrop={this.handleHeaderDragDrop}
+          handleResize={this.handleResize}
+          setEditing={this.setEditing}
+          setCurrent={this.setCurrent}
+          setCopyableValue={this.setCopyableValue}
+          setContextMenu={this.setContextMenu}
+          onFilterChange={this.props.onFilterChange}
           {...other} />
         <BrowserToolbar
+          count={count}
           hidePerms={className === '_Installation'}
           className={SpecialClasses[className] || className}
-          classNameForPermissionsEditor={className}
-          setCurrent={this.setCurrent.bind(this)}
-          enableDeleteAllRows={this.context.currentApp.serverInfo.features.schemas.clearAllDataFromClass}
-          enableExportClass={this.context.currentApp.serverInfo.features.schemas.exportClass}
-          enableSecurityDialog={this.context.currentApp.serverInfo.features.schemas.editClassLevelPermissions}
-          {...other}/>
+          classNameForEditors={className}
+          setCurrent={this.setCurrent}
+          enableDeleteAllRows={this.context.currentApp.serverInfo.features.schemas.clearAllDataFromClass && !preventSchemaEdits}
+          enableExportClass={this.context.currentApp.serverInfo.features.schemas.exportClass && !preventSchemaEdits}
+          enableSecurityDialog={this.context.currentApp.serverInfo.features.schemas.editClassLevelPermissions && !disableSecurityDialog && !preventSchemaEdits}
+          enableColumnManipulation={!preventSchemaEdits}
+          enableClassManipulation={!preventSchemaEdits}
+          handleColumnDragDrop={this.handleHeaderDragDrop}
+          handleColumnsOrder={this.handleColumnsOrder}
+          order={this.state.order}
+          {...other} />
+
+        {this.state.contextMenuX && <ContextMenu
+          x={this.state.contextMenuX}
+          y={this.state.contextMenuY}
+          items={this.state.contextMenuItems}
+        />}
       </div>
     );
   }
 }
 
 DataBrowser.contextTypes = {
-  currentApp: React.PropTypes.instanceOf(ParseApp)
+  currentApp: PropTypes.instanceOf(ParseApp)
 };

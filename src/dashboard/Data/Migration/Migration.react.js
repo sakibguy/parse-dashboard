@@ -151,7 +151,7 @@ export default class Migration extends DashboardView {
               onClick={()=>{
                 this.setState({stoppingState: AsyncStatus.PROGRESS});
                 //No need to handle failure of this request becase it's really rare and it doesn't really matter if the user doesn't realize it failed.
-                this.context.currentApp.stopMigration().always(() => {
+                this.context.currentApp.stopMigration().finally(() => {
                   this.setState({stoppingState: AsyncStatus.WAITING});
                 });
               }}/>
@@ -258,7 +258,7 @@ export default class Migration extends DashboardView {
           let errorMessage = null;
           switch (this.context.currentApp.migration.wellKnownError) {
             case 1:
-              errorMessage = "This is an error state.";
+              errorMessage = 'This is an error state.';
               break;
             default:
               errorMessage = this.context.currentApp.migration.migrationState === MIGRATION_INITIALSYNC ? null : ' ';
@@ -318,7 +318,7 @@ export default class Migration extends DashboardView {
               commitingState: AsyncStatus.SUCCESS,
               commitDialogOpen: false,
             });
-          }).fail(() => {
+          }).catch(() => {
             this.setState({commitingState: AsyncStatus.FAILED});
           });
         }}

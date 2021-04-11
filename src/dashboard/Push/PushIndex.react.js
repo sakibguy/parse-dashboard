@@ -98,7 +98,7 @@ let isChannelTargeted = (pushData) => {
   let additionalKeys = false;
 
   for (let key in queryJSON) {
-    if (queryJSON.hasOwnProperty(key)) {
+    if (Object.prototype.hasOwnProperty.call(queryJSON, key)) {
       if (key !== 'deviceType' && key !== 'channels') {
         additionalKeys = true;
       }
@@ -254,7 +254,7 @@ export default class PushIndex extends DashboardView {
         },
         pushes: this.state.pushes.concat(pushes),
       });
-    }).always(() => {
+    }).finally(() => {
       this.setState({
         loading: false,
         showMoreLoading: false,

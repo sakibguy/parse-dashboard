@@ -26,14 +26,14 @@ function JobsStore(state, action) {
   switch (action.type) {
     case ActionTypes.FETCH:
       if (state && new Date() - state.get('lastFetch') < 60000) {
-        return Parse.Promise.as(state);
+        return Promise.resolve(state);
       }
-      path = `cloud_code/jobs?per_page=50`;
+      path = 'cloud_code/jobs?per_page=50';
       return Parse._request('GET', path, {}, { useMasterKey: true}).then((results) => {
         return Map({ lastFetch: new Date(), jobs: List(results) });
       });
     case ActionTypes.CREATE:
-      path = `cloud_code/jobs`;
+      path = 'cloud_code/jobs';
       return Parse._request('POST', path, action.schedule, {useMasterKey: true}).then((result) => {
         let { ...schedule } = action.schedule.job_schedule;
         schedule.objectId = result.objectId;

@@ -13,12 +13,12 @@ var rp = require('request-promise');
 var ParseDashboard = require('../../../Parse-Dashboard/app');
 
 var dashboardSettings = {
-  "apps": [
+  'apps': [
     {
-      "serverURL": "http://localhost:5051/parse",
-      "appId": "appId",
-      "masterKey": "masterKey",
-      "appName": "MyApp"
+      'serverURL': 'http://localhost:5051/parse',
+      'appId': 'appId',
+      'masterKey': 'masterKey',
+      'appName': 'MyApp'
     }
   ]
 };
@@ -35,7 +35,7 @@ describe('e2e', () => {
       return rp('http://localhost:5051/dashboard');
     })
     .then(result => {
-      let bundleLocation = result.match(/<script src=\"([^\"]*)\">/)[1]
+      let bundleLocation = result.match(/<script src="([^"]*)">/)[1]
       return rp('http://localhost:5051' + bundleLocation);
     })
     .then(bundleText => {
@@ -55,7 +55,7 @@ describe('e2e', () => {
       return rp('http://localhost:5051');
     })
     .then(result => {
-      let bundleLocation = result.match(/<script src=\"([^\"]*)\">/)[1]
+      let bundleLocation = result.match(/<script src="([^"]*)">/)[1]
       return rp('http://localhost:5051' + bundleLocation);
     })
     .then(bundleText => {

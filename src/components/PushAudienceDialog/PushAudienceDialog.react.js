@@ -26,13 +26,13 @@ import TextInput             from 'components/TextInput/TextInput.react';
 import Toggle                from 'components/Toggle/Toggle.react';
 import { List, Map }         from 'immutable';
 
-const PARSE_SERVER_SUPPORTS_SAVED_AUDIENCES = false;
-const AUDIENCE_SIZE_FETCHING_ENABLED = false;
+const PARSE_SERVER_SUPPORTS_SAVED_AUDIENCES = true;
+const AUDIENCE_SIZE_FETCHING_ENABLED = true;
 
 let filterFormatter = (filters, schema) => {
   return filters.map((filter) => {
     let type = schema[filter.get('field')];
-    if (Filters.Constraints[filter.get('constraint')].hasOwnProperty('field')) {
+    if (Object.prototype.hasOwnProperty.call(Filters.Constraints[filter.get('constraint')], 'field')) {
       type = Filters.Constraints[filter.get('constraint')].field;
     }
     // Format any stringified fields
@@ -55,6 +55,7 @@ export default class PushAudienceDialog extends React.Component {
       audienceName: '',
       audienceSize: undefined,
       approximate: false,
+      errorMessage: undefined,
     };
   }
 
@@ -91,6 +92,10 @@ export default class PushAudienceDialog extends React.Component {
   }
 
   handleAddCondition() {
+    if (!this.props.schema || !Object.keys(this.props.schema).length) {
+      this.setState({ errorMessage: 'You first need to create the Installation class before adding conditions to an audience.' });
+      return;
+    }
     let available = Filters.availableFilters(this.props.schema, this.state.filters);
     let field = Object.keys(available)[0];
     this.setState(({ filters }) => ({
@@ -258,9 +263,9 @@ export default class PushAudienceDialog extends React.Component {
         </div>
         {futureUseSegment}
         <FormNote
-          show={Boolean(this.props.errorMessage && this.props.errorMessage.length > 0)}
+          show={Boolean((this.props.errorMessage && this.props.errorMessage.length > 0) || (this.state.errorMessage && this.state.errorMessage.length > 0))}
           color='red' >
-          {this.props.errorMessage}
+          {this.props.errorMessage || this.state.errorMessage}
         </FormNote>
       </Modal>
     );
@@ -268,7 +273,7 @@ export default class PushAudienceDialog extends React.Component {
 }
 
 PushAudienceDialog.contextTypes = {
-  currentApp: React.PropTypes.instanceOf(ParseApp)
+  currentApp: PropTypes.instanceOf(ParseApp)
 };
 
 PushAudienceDialog.propTypes = {

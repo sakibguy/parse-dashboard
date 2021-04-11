@@ -20,7 +20,6 @@ import TextInput               from 'components/TextInput/TextInput.react';
 import Toggle                  from 'components/Toggle/Toggle.react';
 import Toolbar                 from 'components/Toolbar/Toolbar.react';
 import unique                  from 'lib/unique';
-import { Promise }             from 'parse';
 
 export default class HostingSettings extends DashboardView {
 	constructor() {
@@ -62,7 +61,7 @@ export default class HostingSettings extends DashboardView {
 				labelWidth={62}
 				label={<Label
 					text="Host name"
-					description={"A host with a subdomain CNAME entry set to " + (fields.subdomain_name || '[your subdomain name]') + ".parseapp.com"}
+					description={'A host with a subdomain CNAME entry set to ' + (fields.subdomain_name || '[your subdomain name]') + '.parseapp.com'}
 				/>}
 				input={<TextInput
 					value={fields.host_name}
@@ -97,9 +96,9 @@ export default class HostingSettings extends DashboardView {
 							sslPublicCertError: '',
 						});
 						//TODO: do something here to indicate success and/or upload when you click the FlowView save button rather than immediately
-						this.context.currentApp.uploadSSLPublicCertificate(file).fail(({ error }) => {
+						this.context.currentApp.uploadSSLPublicCertificate(file).catch(({ error }) => {
 							this.setState({ sslPublicCertError: error });
-						}).always(() => {
+						}).finally(() => {
 							this.setState({ sslPublicCertUploading: false });
 						});
 					}} />
@@ -123,9 +122,9 @@ export default class HostingSettings extends DashboardView {
 							sslPrivateKeyError: '',
 						});
 						//TODO: do something here to indicate success and/or upload when you click the FlowView save button rather than immediately
-						this.context.currentApp.uploadSSLPrivateKey(file).fail(({ error }) => {
+						this.context.currentApp.uploadSSLPrivateKey(file).catch(({ error }) => {
 							this.setState({ sslPrivateKeyError: error });
-						}).always(() => {
+						}).finally(() => {
 							this.setState({ sslPrivateKeyUploading: false });
 						});
 					}} />
@@ -155,7 +154,7 @@ export default class HostingSettings extends DashboardView {
 				labelWidth={62}
 				label={<Label
 					text="Display name"
-					description={"The name we\u2019ll use when sending emails from your app."}/>
+					description={'The name we\u2019ll use when sending emails from your app.'}/>
 				}
 				input={<TextInput
 					value={fields.sender_display_name}
@@ -219,7 +218,7 @@ export default class HostingSettings extends DashboardView {
 			<Field
 				labelWidth={62}
 				label={<Label
-					text={"Custom “choose a new password” page"}
+					text={'Custom “choose a new password” page'}
 					//getSiteDomain() is required here and not for the other templates because this template is an erb file, as opposed to the others which are html.
 					description={<span>This page will be loaded when users click on a reset password link. <a href={getSiteDomain() + '/apps/choose_password'} download="choose_password.html">Download the template</a>.</span>} />
 				}
@@ -231,7 +230,7 @@ export default class HostingSettings extends DashboardView {
 			<Field
 				labelWidth={62}
 				label={<Label
-					text={"Custom “password changed” page"}
+					text={'Custom “password changed” page'}
 					description={<span>This page will be loaded when users successfully change their password. <a href="/apps/password_reset_success.html" download="password_updated.html">Download the template</a>.</span>} />
 				}
 				input={<TextInput
@@ -242,7 +241,7 @@ export default class HostingSettings extends DashboardView {
 			<Field
 				labelWidth={62}
 				label={<Label
-					text={"Custom “email verified” page"}
+					text={'Custom “email verified” page'}
 					description={<span>This page will be loaded when users verify their email address. <a href="/apps/verify_email_success.html" download="email_verification.html">Download the template</a>.</span>} />
 				}
 				input={<TextInput
@@ -253,7 +252,7 @@ export default class HostingSettings extends DashboardView {
 			<Field
 				labelWidth={62}
 				label={<Label
-					text={"Custom 404 page"}
+					text={'Custom 404 page'}
 					description={<span>This page will be loaded whenever users mistype the reset password or verify email links. <a href="/apps/invalid_link.html" download="invalid_link.html">Download the template</a>.</span>} />
 				}
 				input={<TextInput
@@ -269,7 +268,7 @@ export default class HostingSettings extends DashboardView {
 			<Field
 				labelWidth={62}
 				label={<Label
-					text={"Parse Frame URL"}
+					text={'Parse Frame URL'}
 					description={<span>Upload <a href="/apps/user_management" download="user_management.html">this file</a> to your server and tell us where you put it.</span>} />
 				}
 				input={<TextInput
@@ -297,20 +296,16 @@ export default class HostingSettings extends DashboardView {
 			initialFields={initialFields}
 			footerContents={({changes}) => renderFlowFooterChanges(changes, initialFields, hostingFieldOptions)}
 			onSubmit={({ changes, setField }) => {
-				let promise = new Promise();
-				this.props.saveChanges(changes).then(({ successes, failures }) => {
+				return this.props.saveChanges(changes).then(({ successes, failures }) => {
 					for (let k in successes) {
 						setField(k, successes[k]);
 					}
 					if (Object.keys(failures).length > 0) {
-						promise.reject({ error: Object.values(failures).join(' ') });
-					} else {
-						promise.resolve();
+						return Promise.reject({ error: Object.values(failures).join(' ') });
 					}
-				}).fail(({ error, failures = {} }) => {
-					promise.reject({ error: unique(Object.values(failures).concat(error)).join(' ') });
+				}).catch(({ error, failures = {} }) => {
+					return Promise.reject({ error: unique(Object.values(failures).concat(error)).join(' ') });
 				});
-				return promise;
 			}}
 			validate={() => '' /*TODO: do some validation*/}
 			renderForm={this.renderForm.bind(this)}

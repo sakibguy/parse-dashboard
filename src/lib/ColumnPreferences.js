@@ -71,8 +71,12 @@ export function getColumnSort(sortBy, appId, className) {
   return currentSort;
 }
 
-export function getOrder(cols, appId, className) {
-  let prefs = getPreferences(appId, className) || [ { name: 'objectId', width: DEFAULT_WIDTH } ];
+export function getOrder(cols, appId, className, defaultPrefs) {
+
+  let prefs = getPreferences(appId, className) || [ { name: 'objectId', width: DEFAULT_WIDTH, visible: true } ];
+  if (defaultPrefs) {
+    prefs = defaultPrefs;
+  }
   let order = [].concat(prefs);
   let seen = {};
   for (let i = 0; i < order.length; i++) {
@@ -83,14 +87,21 @@ export function getOrder(cols, appId, className) {
   for (let name in cols) {
     requested[name] = true;
     if (!seen[name]) {
-      order.push({ name: name, width: DEFAULT_WIDTH });
+      order.push({ name: name, width: DEFAULT_WIDTH, visible: !defaultPrefs });
       seen[name] = true;
       updated = true;
     }
   }
   let filtered = [];
   for (let i = 0; i < order.length; i++) {
-    let name = order[i].name;
+    const { name, visible } = order[i];
+
+    // If "visible" attribute is not defined, sets to true
+    // and updates the cached preferences.
+    if (typeof visible === 'undefined') {
+      order[i].visible = true;
+      updated = true;
+    }
     if (requested[name]) {
       filtered.push(order[i]);
     } else {

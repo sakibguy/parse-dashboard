@@ -10,21 +10,25 @@ import DragHandle          from 'components/DragHandle/DragHandle.react';
 import HTML5Backend        from 'react-dnd-html5-backend';
 import React               from 'react';
 import styles              from 'components/DataBrowserHeaderBar/DataBrowserHeaderBar.scss';
-import { DragDropContext } from 'react-dnd';
+import { DndProvider }     from 'react-dnd'
 
-@DragDropContext(HTML5Backend)
 export default class DataBrowserHeaderBar extends React.Component {
   render() {
-    let { headers, onResize, selectAll, onAddColumn, updateOrdering, readonly } = this.props;
+    let { headers, onResize, selectAll, onAddColumn, updateOrdering, readonly, preventSchemaEdits, selected } = this.props;
     let elements = [
-      // Note: bulk checkbox is disabled as all rows are selected (not just visible ones due to current lazy loading implementation)
-      // TODO: add bulk checking only visible rows
       <div key='check' className={[styles.wrap, styles.check].join(' ')}>
-        {readonly ? null : <input className={styles.disabled} type='checkbox' disabled={true} checked={false} onChange={(e) => selectAll(e.target.checked)} />}
+        {readonly
+          ? null
+          : <input
+              type='checkbox'
+              checked={selected}
+              onChange={(e) => selectAll(e.target.checked)} />
+        }
       </div>
     ];
 
-    headers.forEach(({ width, name, type, targetClass, order }, i) => {
+    headers.forEach(({ width, name, type, targetClass, order, visible }, i) => {
+      if (!visible) return;
       let wrapStyle = { width };
       if (i % 2) {
         wrapStyle.background = '#726F85';
@@ -56,24 +60,31 @@ export default class DataBrowserHeaderBar extends React.Component {
       );
     });
 
-    let finalStyle = {};
-    if (headers.length % 2) {
-      finalStyle.background = 'rgba(224,224,234,0.10)';
+    if (onAddColumn) {
+      let finalStyle = {};
+      if (headers.length % 2) {
+        finalStyle.background = 'rgba(224,224,234,0.10)';
+      }
+  
+      elements.push(
+        readonly || preventSchemaEdits ? null : (
+          <div key='add' className={styles.addColumn} style={finalStyle}>
+            <a
+              href='javascript:;'
+              role='button'
+              className={styles.addColumnButton}
+              onClick={onAddColumn}>
+              Add a new column
+            </a>
+          </div>
+        )
+      );
     }
-    elements.push(
-      readonly ? null : (
-        <div key='add' className={styles.addColumn} style={finalStyle}>
-          <a
-            href='javascript:;'
-            role='button'
-            className={styles.addColumnButton}
-            onClick={onAddColumn}>
-            Add a new column
-          </a>
-        </div>
-      )
-    );
 
-    return <div className={styles.bar}>{elements}</div>;
+    return (
+      <DndProvider backend={HTML5Backend}>
+        <div className={styles.bar}>{elements}</div>
+      </DndProvider>
+    )
   }
 }

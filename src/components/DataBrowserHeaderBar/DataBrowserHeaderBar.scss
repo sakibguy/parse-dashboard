@@ -65,6 +65,10 @@
   cursor: ew-resize;
 }
 
-.disabled {
-  cursor: not-allowed;
+.pickerPointer {
+  .check {
+    input {
+      display: none;
+    }
+  }
 }

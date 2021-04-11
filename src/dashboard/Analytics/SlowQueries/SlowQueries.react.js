@@ -36,9 +36,10 @@ let formatQuery = (query) => {
   return query;
 };
 
+export default
 @subscribeTo('Schema', 'schema')
 @subscribeTo('AnalyticsQuery', 'customQueries')
-export default class SlowQueries extends TableView {
+class SlowQueries extends TableView {
   constructor() {
     super();
     this.section = 'Analytics';
@@ -128,7 +129,7 @@ export default class SlowQueries extends TableView {
         let os = value['OS'];
         let version = value['App Display Version'];
         if (os === null || version === null) return;
-        if (appVersions.hasOwnProperty(os)) {
+        if (Object.prototype.hasOwnProperty.call(appVersions, os)) {
           appVersions[os].push(version);
         } else {
           appVersions[os] = [version];
