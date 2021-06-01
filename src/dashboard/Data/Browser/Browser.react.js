@@ -280,7 +280,9 @@ class Browser extends DashboardView {
       required,
       defaultValue
     };
-    this.props.schema.dispatch(ActionTypes.ADD_COLUMN, payload).finally(() => {
+    this.props.schema.dispatch(ActionTypes.ADD_COLUMN, payload).catch((err) => {
+      this.showNote(err.message, true);
+    }).finally(() => {
       this.setState({ showAddColumnDialog: false });
     });
   }
@@ -1118,6 +1120,7 @@ class Browser extends DashboardView {
           classes={this.props.schema.data.get('classes').keySeq().toArray()}
           onCancel={() => this.setState({ showAddColumnDialog: false })}
           onConfirm={this.addColumn}
+          showNote={this.showNote}
           parseServerVersion={currentApp.serverInfo && currentApp.serverInfo.parseServerVersion} />
       );
     } else if (this.state.showRemoveColumnDialog) {
